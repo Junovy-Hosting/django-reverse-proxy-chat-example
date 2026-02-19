@@ -2,8 +2,14 @@
 <html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{% block title %}Faerie Chat{% endblock %}</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#7c3aed">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="FaeChat">
+    <link rel="apple-touch-icon" href="/pwa/icon-192.svg">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -24,9 +30,106 @@
     <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/bold/style.css">
+    <script>
+        // -----------------------------------------------------------------------
+        // SVG Avatar Generator — deterministic avatars from usernames
+        // -----------------------------------------------------------------------
+        function hashUsername(str) {
+            // FNV-1a 32-bit hash
+            var h = 0x811c9dc5;
+            for (var i = 0; i < str.length; i++) {
+                h ^= str.charCodeAt(i);
+                h = Math.imul(h, 0x01000193);
+            }
+            return h >>> 0;
+        }
+
+        function generateAvatar(username, size) {
+            size = size || 32;
+            var h = hashUsername(username);
+
+            var palettes = [
+                ["#a855f7", "#7c3aed"], ["#a855f7", "#c084fc"],
+                ["#7c3aed", "#c084fc"], ["#2dd4bf", "#14b8a6"],
+                ["#2dd4bf", "#5eead4"], ["#14b8a6", "#5eead4"],
+                ["#fbbf24", "#f59e0b"], ["#fbbf24", "#d97706"],
+                ["#f59e0b", "#d97706"], ["#a855f7", "#2dd4bf"],
+                ["#7c3aed", "#14b8a6"], ["#c084fc", "#5eead4"],
+                ["#a855f7", "#fbbf24"], ["#2dd4bf", "#f59e0b"],
+                ["#7c3aed", "#d97706"], ["#c084fc", "#fbbf24"]
+            ];
+            var pair = palettes[h % palettes.length];
+            var angle = ((h >> 4) % 4) * 90;
+
+            // Eye style: 0=circles, 1=dots, 2=closed, 3=wink
+            var eyeStyle = (h >> 6) % 4;
+            // Mouth style: 0=smile, 1=grin, 2=cat, 3=line
+            var mouthStyle = (h >> 8) % 4;
+
+            var r = size / 2;
+            var gId = "g" + h;
+            var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">';
+            svg += '<defs><linearGradient id="' + gId + '" gradientTransform="rotate(' + angle + ' 0.5 0.5)" gradientUnits="objectBoundingBox">';
+            svg += '<stop offset="0%" stop-color="' + pair[0] + '"/>';
+            svg += '<stop offset="100%" stop-color="' + pair[1] + '"/>';
+            svg += '</linearGradient></defs>';
+            svg += '<circle cx="' + r + '" cy="' + r + '" r="' + r + '" fill="url(#' + gId + ')"/>';
+
+            // Face features — scaled to size
+            var s = size / 32; // scale factor
+            var lx = 11 * s, rx = 21 * s, ey = 13 * s;
+
+            // Eyes
+            if (eyeStyle === 0) {
+                svg += '<circle cx="' + lx + '" cy="' + ey + '" r="' + (2.2 * s) + '" fill="white" opacity="0.9"/>';
+                svg += '<circle cx="' + rx + '" cy="' + ey + '" r="' + (2.2 * s) + '" fill="white" opacity="0.9"/>';
+            } else if (eyeStyle === 1) {
+                svg += '<circle cx="' + lx + '" cy="' + ey + '" r="' + (1.5 * s) + '" fill="white" opacity="0.9"/>';
+                svg += '<circle cx="' + rx + '" cy="' + ey + '" r="' + (1.5 * s) + '" fill="white" opacity="0.9"/>';
+            } else if (eyeStyle === 2) {
+                svg += '<path d="M' + (lx - 2.5 * s) + ' ' + ey + ' Q' + lx + ' ' + (ey - 2.5 * s) + ' ' + (lx + 2.5 * s) + ' ' + ey + '" stroke="white" stroke-width="' + (1.2 * s) + '" fill="none" opacity="0.9" stroke-linecap="round"/>';
+                svg += '<path d="M' + (rx - 2.5 * s) + ' ' + ey + ' Q' + rx + ' ' + (ey - 2.5 * s) + ' ' + (rx + 2.5 * s) + ' ' + ey + '" stroke="white" stroke-width="' + (1.2 * s) + '" fill="none" opacity="0.9" stroke-linecap="round"/>';
+            } else {
+                // Wink: left eye circle, right eye arc
+                svg += '<circle cx="' + lx + '" cy="' + ey + '" r="' + (2.2 * s) + '" fill="white" opacity="0.9"/>';
+                svg += '<path d="M' + (rx - 2.5 * s) + ' ' + ey + ' Q' + rx + ' ' + (ey - 2.5 * s) + ' ' + (rx + 2.5 * s) + ' ' + ey + '" stroke="white" stroke-width="' + (1.2 * s) + '" fill="none" opacity="0.9" stroke-linecap="round"/>';
+            }
+
+            // Mouth
+            var mx = 16 * s, my = 20 * s;
+            if (mouthStyle === 0) {
+                svg += '<path d="M' + (mx - 4 * s) + ' ' + my + ' Q' + mx + ' ' + (my + 4 * s) + ' ' + (mx + 4 * s) + ' ' + my + '" stroke="white" stroke-width="' + (1.2 * s) + '" fill="none" opacity="0.9" stroke-linecap="round"/>';
+            } else if (mouthStyle === 1) {
+                svg += '<path d="M' + (mx - 4.5 * s) + ' ' + my + ' Q' + mx + ' ' + (my + 5 * s) + ' ' + (mx + 4.5 * s) + ' ' + my + '" stroke="white" stroke-width="' + (1.2 * s) + '" fill="none" opacity="0.9" stroke-linecap="round"/>';
+            } else if (mouthStyle === 2) {
+                // Cat mouth
+                svg += '<path d="M' + mx + ' ' + my + ' Q' + (mx - 3 * s) + ' ' + (my + 3 * s) + ' ' + (mx - 5 * s) + ' ' + my + '" stroke="white" stroke-width="' + (1.2 * s) + '" fill="none" opacity="0.9" stroke-linecap="round"/>';
+                svg += '<path d="M' + mx + ' ' + my + ' Q' + (mx + 3 * s) + ' ' + (my + 3 * s) + ' ' + (mx + 5 * s) + ' ' + my + '" stroke="white" stroke-width="' + (1.2 * s) + '" fill="none" opacity="0.9" stroke-linecap="round"/>';
+            } else {
+                svg += '<line x1="' + (mx - 3.5 * s) + '" y1="' + my + '" x2="' + (mx + 3.5 * s) + '" y2="' + my + '" stroke="white" stroke-width="' + (1.2 * s) + '" opacity="0.9" stroke-linecap="round"/>';
+            }
+
+            svg += '</svg>';
+            return svg;
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            document.querySelectorAll(".avatar-slot").forEach(function(el) {
+                var username = el.dataset.username;
+                var size = parseInt(el.dataset.size || "32", 10);
+                if (username) el.innerHTML = generateAvatar(username, size);
+            });
+        });
+    </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
-        body { font-family: 'Inter', sans-serif; }
+        *, *::before, *::after { box-sizing: border-box; }
+        html { overflow-x: hidden; }
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+            max-width: 100vw;
+        }
         .font-cinzel { font-family: 'Cinzel', serif; }
         .glow-purple { text-shadow: 0 0 20px rgba(168, 85, 247, 0.4); }
         .glow-teal { text-shadow: 0 0 20px rgba(45, 212, 191, 0.4); }
@@ -43,7 +146,7 @@
     </style>
 </head>
 <body class="h-full bg-fae-dark text-gray-200">
-    <nav class="bg-fae-deeper border-b border-fae-border">
+    <nav class="bg-fae-deeper border-b border-fae-border" style="padding-top: env(safe-area-inset-top)">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
                 <a href="{% url 'room_list' %}" class="flex items-center space-x-3">
@@ -53,6 +156,7 @@
                 </a>
                 <div class="flex items-center space-x-4">
                     {% if user.is_authenticated %}
+                        <span class="avatar-slot inline-block rounded-full overflow-hidden flex-shrink-0" data-username="{{ user.username }}" data-size="28"></span>
                         <span class="text-amber-400 font-medium">{{ user.username }}</span>
                         <form method="post" action="{% url 'logout' %}" class="inline">
                             {% csrf_token %}
@@ -72,7 +176,7 @@
         </div>
     </nav>
 
-    <main class="{% block main_class %}max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8{% endblock %}">
+    <main class="{% block main_class %}max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8{% endblock %}" style="{% block main_style %}{% endblock %}">
         {% if messages %}
             <div class="mb-4 space-y-2">
                 {% for message in messages %}
@@ -88,5 +192,10 @@
 
         {% block content %}{% endblock %}
     </main>
+    <script>
+        if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.register("/sw.js").catch(function() {});
+        }
+    </script>
 </body>
 </html>

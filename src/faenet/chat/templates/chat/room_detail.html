@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% block title %}{{ room.name }} - Faerie Chat{% endblock %}
 
-{% block main_class %}h-[calc(100vh-4rem)] flex flex-col{% endblock %}
+{% block main_class %}flex flex-col{% endblock %}
+
+{% block main_style %}height: calc(100dvh - 4rem - env(safe-area-inset-top, 0px)); height: calc(100svh - 4rem - env(safe-area-inset-top, 0px));{% endblock %}
 
 {% block content %}
 <div class="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-3 border-b border-fae-border bg-fae-deeper/50">
@@ -13,121 +15,186 @@
         </a>
         <h1 class="font-cinzel text-lg font-semibold text-purple-300">{{ room.name }}</h1>
     </div>
-    <div id="connection-status" class="flex items-center space-x-2 text-xs">
-        <span id="status-dot" class="w-2 h-2 rounded-full bg-yellow-500"></span>
-        <span id="status-text" class="text-gray-500">Connecting...</span>
-    </div>
-</div>
-
-<div id="chat-messages" class="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 space-y-3">
-    {% for msg in chat_messages %}
-        <div class="group relative flex items-start space-x-3"
-             data-message-id="{{ msg.id }}"
-             data-username="{{ msg.user.username }}"
-             data-raw="{{ msg.content|escapejs }}">
-            <span class="{% if msg.user.username == user.username %}text-teal-400{% else %}text-amber-400{% endif %} font-medium text-sm whitespace-nowrap mt-0.5">{{ msg.user.username }}</span>
-            <div class="flex-1 min-w-0">
-                {% if msg.parent %}
-                <div class="reply-parent cursor-pointer border-l-2 border-purple-500 pl-2 mb-1 text-xs text-gray-400 hover:text-gray-300 transition-colors"
-                     data-parent-id="{{ msg.parent.id }}">
-                    <span class="font-medium text-purple-400">{{ msg.parent.user.username }}</span>
-                    <span class="ml-1 truncate inline-block max-w-[200px] align-bottom">{{ msg.parent.content|truncatechars:100 }}</span>
-                </div>
-                {% endif %}
-                <p class="text-gray-300 text-sm leading-relaxed msg-body">{{ msg.content }}</p>
-                {% if msg.reaction_list %}
-                <div class="reactions-container flex flex-wrap gap-1 mt-1">
-                    {% for r in msg.reaction_list %}
-                    <button class="reaction-badge inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-full text-xs border transition-colors
-                        {% if r.reacted_by_me %}bg-purple-900/40 border-purple-500 text-purple-300{% else %}bg-gray-800/50 border-fae-border text-gray-400 hover:border-purple-500{% endif %}"
-                        data-emoji="{{ r.emoji }}">
-                        <span>{{ r.emoji }}</span>
-                        <span class="reaction-count">{{ r.count }}</span>
-                    </button>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <div class="reactions-container flex flex-wrap gap-1 mt-1"></div>
-                {% endif %}
-            </div>
-            <!-- Action bar -->
-            <div class="action-bar absolute -top-3 right-0 hidden group-hover:flex items-center space-x-0.5 bg-fae-card border border-fae-border rounded-lg shadow-lg px-1 py-0.5 z-10">
-                <button class="action-react p-1 text-gray-400 hover:text-purple-400 transition-colors" title="React">
-                    <i class="ph ph-smiley text-base"></i>
-                </button>
-                <button class="action-reply p-1 text-gray-400 hover:text-teal-400 transition-colors" title="Reply">
-                    <i class="ph ph-arrow-bend-up-left text-base"></i>
-                </button>
-            </div>
+    <div class="flex items-center space-x-3">
+        <div id="connection-status" class="flex items-center space-x-2 text-xs">
+            <span id="status-dot" class="w-2 h-2 rounded-full bg-yellow-500"></span>
+            <span id="status-text" class="text-gray-500">Connecting...</span>
         </div>
-    {% endfor %}
-</div>
-
-<!-- Quick reaction picker (floating, hidden) -->
-<div id="quick-reaction-picker" class="hidden absolute z-50 bg-fae-card border border-fae-border rounded-lg shadow-xl px-2 py-1.5 flex items-center space-x-1">
-    <button class="quick-emoji text-lg hover:scale-125 transition-transform" data-emoji="❤️">❤️</button>
-    <button class="quick-emoji text-lg hover:scale-125 transition-transform" data-emoji="😂">😂</button>
-    <button class="quick-emoji text-lg hover:scale-125 transition-transform" data-emoji="👍">👍</button>
-    <button class="quick-emoji text-lg hover:scale-125 transition-transform" data-emoji="🔥">🔥</button>
-    <button class="quick-emoji text-lg hover:scale-125 transition-transform" data-emoji="👀">👀</button>
-    <button class="quick-emoji text-lg hover:scale-125 transition-transform" data-emoji="🎉">🎉</button>
-    <button id="quick-emoji-plus" class="text-lg text-gray-500 hover:text-purple-400 transition-colors px-0.5" title="More emoji">+</button>
-</div>
-
-<div class="px-4 sm:px-6 lg:px-8 py-4 border-t border-fae-border bg-fae-deeper/50 relative">
-    <!-- Reply Preview Bar -->
-    <div id="reply-preview" class="hidden mb-2 flex items-center bg-fae-card border border-fae-border rounded-lg px-3 py-2">
-        <div class="border-l-2 border-purple-500 pl-2 flex-1 min-w-0">
-            <span id="reply-preview-username" class="text-purple-400 text-xs font-medium"></span>
-            <p id="reply-preview-content" class="text-gray-400 text-xs truncate"></p>
-        </div>
-        <button id="reply-cancel" class="ml-2 text-gray-500 hover:text-red-400 transition-colors flex-shrink-0">
-            <i class="ph ph-x text-base"></i>
-        </button>
-    </div>
-
-    <!-- Emoji Picker (floating, hidden by default) -->
-    <div id="emoji-picker-container" class="hidden absolute bottom-full left-4 mb-2 z-50">
-        <emoji-picker></emoji-picker>
-    </div>
-
-    <!-- Giphy Panel (floating, hidden by default) -->
-    <div id="giphy-panel" class="hidden absolute bottom-full left-4 mb-2 z-50 w-80 max-h-96 bg-fae-card border border-fae-border rounded-lg shadow-xl flex flex-col overflow-hidden">
-        <div class="p-3 border-b border-fae-border">
-            <input type="text" id="giphy-search-input" placeholder="Search GIFs..."
-                   class="w-full bg-gray-800/50 border border-fae-border rounded-md px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-purple-500">
-        </div>
-        <div id="giphy-results" class="flex-1 overflow-y-auto p-2 grid grid-cols-2 gap-2">
-            <p id="giphy-placeholder" class="col-span-2 text-center text-gray-500 text-xs py-4">Loading trending GIFs...</p>
-        </div>
-        <div class="px-3 py-1.5 border-t border-fae-border">
-            <span class="text-gray-600 text-[10px]">Powered by GIPHY</span>
-        </div>
-    </div>
-
-    <form id="chat-form" class="flex items-center space-x-2">
-        <!-- Emoji button -->
-        <button type="button" id="emoji-btn" title="Emoji"
-                class="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-gray-800/50 border border-fae-border rounded-lg text-gray-400 hover:text-purple-400 hover:border-purple-500 transition-colors focus:outline-none focus:border-purple-500">
+        <!-- Mobile toggle for online sidebar -->
+        <button id="online-toggle" class="lg:hidden p-1.5 text-gray-400 hover:text-teal-400 transition-colors rounded-lg hover:bg-fae-card" title="Online users">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
             </svg>
         </button>
+    </div>
+</div>
 
-        <!-- GIF button (hidden if Giphy not configured) -->
-        <button type="button" id="gif-btn" title="Send a GIF" style="display:none"
-                class="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-gray-800/50 border border-fae-border rounded-lg text-gray-400 hover:text-teal-400 hover:border-teal-500 transition-colors focus:outline-none focus:border-teal-500">
-            <span class="text-xs font-bold">GIF</span>
-        </button>
+<!-- Notification permission prompt -->
+<div id="notif-prompt" class="hidden px-4 sm:px-6 lg:px-8 py-2 bg-purple-900/30 border-b border-purple-800/50">
+    <div class="flex items-center justify-between">
+        <p class="text-purple-300 text-xs">Enable notifications to know when new messages arrive while you're away.</p>
+        <div class="flex items-center space-x-2 ml-4 flex-shrink-0">
+            <button id="notif-enable" class="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white text-xs rounded transition-colors">Enable</button>
+            <button id="notif-dismiss" class="px-3 py-1 text-gray-400 hover:text-gray-300 text-xs transition-colors">Dismiss</button>
+        </div>
+    </div>
+</div>
 
-        <input type="text" id="chat-input" autocomplete="off"
-               class="flex-1 bg-gray-800/50 border border-fae-border rounded-lg px-4 py-3 text-gray-100 placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-colors"
-               placeholder="Whisper into the void...">
-        <button type="submit"
-                class="px-6 py-3 bg-gradient-to-r from-purple-600 to-teal-600 hover:from-purple-500 hover:to-teal-500 text-white font-semibold rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500">
-            Send
+<div class="flex flex-1 overflow-hidden">
+    <!-- Chat column -->
+    <div class="flex-1 flex flex-col min-w-0">
+        <div class="flex-1 overflow-hidden relative">
+        <div id="chat-messages" class="absolute inset-0 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 space-y-3">
+            {% for msg in chat_messages %}
+                <div class="group relative flex items-start space-x-3"
+                     data-message-id="{{ msg.id }}"
+                     data-username="{{ msg.user.username }}"
+                     data-raw="{{ msg.content|escapejs }}">
+                    <div class="flex-shrink-0 mt-0.5 avatar-slot rounded-full overflow-hidden" data-username="{{ msg.user.username }}" data-size="28"></div>
+                    <span class="{% if msg.user.username == user.username %}text-teal-400{% else %}text-amber-400{% endif %} font-medium text-sm whitespace-nowrap mt-0.5">{{ msg.user.username }}</span>
+                    <div class="flex-1 min-w-0">
+                        {% if msg.parent %}
+                        <div class="reply-parent cursor-pointer border-l-2 border-purple-500 pl-2 mb-1 text-xs text-gray-400 hover:text-gray-300 transition-colors"
+                             data-parent-id="{{ msg.parent.id }}">
+                            <span class="font-medium text-purple-400">{{ msg.parent.user.username }}</span>
+                            <span class="ml-1 truncate inline-block max-w-[200px] align-bottom">{{ msg.parent.content|truncatechars:100 }}</span>
+                        </div>
+                        {% endif %}
+                        <p class="text-gray-300 text-sm leading-relaxed msg-body">{{ msg.content }}</p>
+                        {% if msg.reaction_list %}
+                        <div class="reactions-container flex flex-wrap gap-1 mt-1">
+                            {% for r in msg.reaction_list %}
+                            <button class="reaction-badge inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-full text-xs border transition-colors
+                                {% if r.reacted_by_me %}bg-purple-900/40 border-purple-500 text-purple-300{% else %}bg-gray-800/50 border-fae-border text-gray-400 hover:border-purple-500{% endif %}"
+                                data-emoji="{{ r.emoji }}">
+                                <span>{{ r.emoji }}</span>
+                                <span class="reaction-count">{{ r.count }}</span>
+                            </button>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="reactions-container flex flex-wrap gap-1 mt-1"></div>
+                        {% endif %}
+                    </div>
+                    <!-- Action bar -->
+                    <div class="action-bar absolute -top-3 right-0 hidden group-hover:flex items-center space-x-0.5 bg-fae-card border border-fae-border rounded-lg shadow-lg px-1 py-0.5 z-10">
+                        <button class="action-react p-1 text-gray-400 hover:text-purple-400 transition-colors" title="React">
+                            <i class="ph ph-smiley text-base"></i>
+                        </button>
+                        <button class="action-reply p-1 text-gray-400 hover:text-teal-400 transition-colors" title="Reply">
+                            <i class="ph ph-arrow-bend-up-left text-base"></i>
+                        </button>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- Scroll-to-bottom floating button -->
+        <button id="scroll-bottom-btn" class="hidden absolute bottom-3 right-4 z-20 w-9 h-9 flex items-center justify-center bg-fae-card border border-fae-border rounded-full shadow-lg text-gray-400 hover:text-purple-400 hover:border-purple-500 transition-all"
+                title="Jump to latest">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
+            </svg>
         </button>
-    </form>
+        </div>
+
+        <!-- Quick reaction picker (floating, hidden) -->
+        <div id="quick-reaction-picker" class="hidden absolute z-50 bg-fae-card border border-fae-border rounded-lg shadow-xl px-2 py-1.5 flex items-center space-x-1">
+            <button class="quick-emoji text-lg hover:scale-125 transition-transform" data-emoji="❤️">❤️</button>
+            <button class="quick-emoji text-lg hover:scale-125 transition-transform" data-emoji="😂">😂</button>
+            <button class="quick-emoji text-lg hover:scale-125 transition-transform" data-emoji="👍">👍</button>
+            <button class="quick-emoji text-lg hover:scale-125 transition-transform" data-emoji="🔥">🔥</button>
+            <button class="quick-emoji text-lg hover:scale-125 transition-transform" data-emoji="👀">👀</button>
+            <button class="quick-emoji text-lg hover:scale-125 transition-transform" data-emoji="🎉">🎉</button>
+            <button id="quick-emoji-plus" class="text-lg text-gray-500 hover:text-purple-400 transition-colors px-0.5" title="More emoji">+</button>
+        </div>
+
+        <div class="px-4 sm:px-6 lg:px-8 py-4 border-t border-fae-border bg-fae-deeper/50 relative" style="padding-bottom: max(1rem, env(safe-area-inset-bottom, 1rem))">
+            <!-- Reply Preview Bar -->
+            <div id="reply-preview" class="hidden mb-2 flex items-center bg-fae-card border border-fae-border rounded-lg px-3 py-2">
+                <div class="border-l-2 border-purple-500 pl-2 flex-1 min-w-0">
+                    <span id="reply-preview-username" class="text-purple-400 text-xs font-medium"></span>
+                    <p id="reply-preview-content" class="text-gray-400 text-xs truncate"></p>
+                </div>
+                <button id="reply-cancel" class="ml-2 text-gray-500 hover:text-red-400 transition-colors flex-shrink-0">
+                    <i class="ph ph-x text-base"></i>
+                </button>
+            </div>
+
+            <!-- Emoji Picker (floating, hidden by default) -->
+            <div id="emoji-picker-container" class="hidden absolute bottom-full left-4 mb-2 z-50">
+                <emoji-picker></emoji-picker>
+            </div>
+
+            <!-- Giphy Panel (floating, hidden by default) -->
+            <div id="giphy-panel" class="hidden absolute bottom-full left-4 mb-2 z-50 w-80 max-h-96 bg-fae-card border border-fae-border rounded-lg shadow-xl flex flex-col overflow-hidden">
+                <div class="p-3 border-b border-fae-border">
+                    <input type="text" id="giphy-search-input" placeholder="Search GIFs..."
+                           class="w-full bg-gray-800/50 border border-fae-border rounded-md px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-purple-500">
+                </div>
+                <div id="giphy-results" class="flex-1 overflow-y-auto p-2 grid grid-cols-2 gap-2">
+                    <p id="giphy-placeholder" class="col-span-2 text-center text-gray-500 text-xs py-4">Loading trending GIFs...</p>
+                </div>
+                <div class="px-3 py-1.5 border-t border-fae-border">
+                    <span class="text-gray-600 text-[10px]">Powered by GIPHY</span>
+                </div>
+            </div>
+
+            <form id="chat-form" class="flex items-center space-x-2">
+                <!-- Input with inline emoji + GIF buttons -->
+                <div class="flex-1 flex items-center bg-gray-800/50 border border-fae-border rounded-full px-1.5 focus-within:border-purple-500 focus-within:ring-1 focus-within:ring-purple-500 transition-colors">
+                    <button type="button" id="emoji-btn" title="Emoji"
+                            class="flex-shrink-0 w-8 h-8 flex items-center justify-center text-gray-500 hover:text-purple-400 transition-colors focus:outline-none">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </button>
+                    <button type="button" id="gif-btn" title="Send a GIF" style="display:none"
+                            class="flex-shrink-0 w-8 h-8 flex items-center justify-center text-gray-500 hover:text-teal-400 transition-colors focus:outline-none">
+                        <span class="text-[10px] font-bold border border-current rounded px-1">GIF</span>
+                    </button>
+                    <input type="text" id="chat-input" autocomplete="off"
+                           class="flex-1 min-w-0 bg-transparent py-2.5 px-2 text-gray-100 placeholder-gray-600 focus:outline-none"
+                           placeholder="Whisper into the void...">
+                </div>
+                <!-- Send button (paper airplane icon) -->
+                <button type="submit"
+                        class="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-gradient-to-r from-purple-600 to-teal-600 hover:from-purple-500 hover:to-teal-500 text-white rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z"/>
+                    </svg>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Online users sidebar -->
+    <aside id="online-sidebar" class="hidden lg:flex flex-col w-56 border-l border-fae-border bg-fae-deeper/50 flex-shrink-0">
+        <div class="px-4 py-3 border-b border-fae-border">
+            <div class="flex items-center justify-between">
+                <h2 class="text-sm font-semibold text-purple-300">Online</h2>
+                <span id="online-count" class="text-xs text-gray-500 bg-fae-card px-2 py-0.5 rounded-full">0</span>
+            </div>
+        </div>
+        <div id="online-list" class="flex-1 overflow-y-auto px-3 py-2 space-y-1"></div>
+    </aside>
+
+    <!-- Mobile sidebar overlay -->
+    <div id="online-overlay" class="hidden fixed inset-0 bg-black/50 z-40 lg:hidden"></div>
+    <aside id="online-sidebar-mobile" class="hidden fixed top-0 right-0 bottom-0 w-64 bg-fae-deeper border-l border-fae-border z-50 lg:hidden flex flex-col">
+        <div class="px-4 py-3 border-b border-fae-border flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <h2 class="text-sm font-semibold text-purple-300">Online</h2>
+                <span id="online-count-mobile" class="text-xs text-gray-500 bg-fae-card px-2 py-0.5 rounded-full">0</span>
+            </div>
+            <button id="online-close" class="text-gray-400 hover:text-gray-200 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div id="online-list-mobile" class="flex-1 overflow-y-auto px-3 py-2 space-y-1"></div>
+    </aside>
 </div>
 
 <style>
@@ -169,13 +236,76 @@
     const wsUrl = `${wsScheme}//${window.location.host}/ws/chat/${roomSlug}/`;
 
     // -----------------------------------------------------------------------
+    // Online Users Sidebar
+    // -----------------------------------------------------------------------
+    const onlineToggle = document.getElementById("online-toggle");
+    const onlineOverlay = document.getElementById("online-overlay");
+    const onlineSidebarMobile = document.getElementById("online-sidebar-mobile");
+    const onlineClose = document.getElementById("online-close");
+
+    function openMobileSidebar() {
+        onlineOverlay.classList.remove("hidden");
+        onlineSidebarMobile.classList.remove("hidden");
+    }
+
+    function closeMobileSidebar() {
+        onlineOverlay.classList.add("hidden");
+        onlineSidebarMobile.classList.add("hidden");
+    }
+
+    onlineToggle.addEventListener("click", openMobileSidebar);
+    onlineClose.addEventListener("click", closeMobileSidebar);
+    onlineOverlay.addEventListener("click", closeMobileSidebar);
+
+    function updateOnlineUsers(users) {
+        var count = users.length;
+        document.getElementById("online-count").textContent = count;
+        document.getElementById("online-count-mobile").textContent = count;
+
+        var html = "";
+        users.forEach(function(username) {
+            var avatar = generateAvatar(username, 24);
+            html += '<div class="flex items-center space-x-2 px-2 py-1.5 rounded-lg hover:bg-fae-card/50 transition-colors">';
+            html += '<div class="relative flex-shrink-0">';
+            html += '<div class="rounded-full overflow-hidden">' + avatar + '</div>';
+            html += '<span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-fae-deeper"></span>';
+            html += '</div>';
+            html += '<span class="text-sm truncate ' + (username === currentUser ? 'text-teal-400' : 'text-gray-300') + '">' + username + '</span>';
+            html += '</div>';
+        });
+
+        document.getElementById("online-list").innerHTML = html;
+        document.getElementById("online-list-mobile").innerHTML = html;
+    }
+
+    // -----------------------------------------------------------------------
+    // Notification Permission Prompt
+    // -----------------------------------------------------------------------
+    (function() {
+        var prompt = document.getElementById("notif-prompt");
+        var dismissed = localStorage.getItem("faechat-notif-dismissed");
+        if (!dismissed && "Notification" in window && Notification.permission === "default") {
+            prompt.classList.remove("hidden");
+        }
+        document.getElementById("notif-enable").addEventListener("click", function() {
+            Notification.requestPermission();
+            prompt.classList.add("hidden");
+            localStorage.setItem("faechat-notif-dismissed", "1");
+        });
+        document.getElementById("notif-dismiss").addEventListener("click", function() {
+            prompt.classList.add("hidden");
+            localStorage.setItem("faechat-notif-dismissed", "1");
+        });
+    })();
+
+    // -----------------------------------------------------------------------
     // URL Unfurling — detect GIF URLs and render inline
     // -----------------------------------------------------------------------
     const GIF_URL_PATTERN = /https?:\/\/(?:media[0-9]?\.giphy\.com|media\.tenor\.com|i\.giphy\.com)\/\S+\.(?:gif|webp|mp4)/gi;
 
     function renderMessageContent(escapedHtml) {
         return escapedHtml.replace(GIF_URL_PATTERN, function(url) {
-            return `<img src="${url}" alt="GIF" loading="lazy" class="rounded-lg max-w-xs mt-1 cursor-pointer" onclick="window.open('${url}', '_blank')">`;
+            return `<img src="${url}" alt="GIF" loading="lazy" class="rounded-lg mt-1 cursor-pointer" style="max-width:min(20rem,100%)" onclick="window.open('${url}', '_blank')">`;
         });
     }
 
@@ -186,7 +316,16 @@
     }
 
     // -----------------------------------------------------------------------
-    // Append message (supports replies and reactions)
+    // Scroll-to-bottom helpers (declared early so appendMessage can use them)
+    // -----------------------------------------------------------------------
+    const scrollBottomBtn = document.getElementById("scroll-bottom-btn");
+
+    function isNearBottom() {
+        return chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 80;
+    }
+
+    // -----------------------------------------------------------------------
+    // Append message (supports replies, reactions, avatars)
     // -----------------------------------------------------------------------
     function appendMessage(username, message, isSystem, messageId, replyTo) {
         const div = document.createElement("div");
@@ -203,6 +342,7 @@
             const nameClass = username === currentUser ? "text-teal-400" : "text-amber-400";
             const escaped = escapeHtml(message);
             const rendered = renderMessageContent(escaped);
+            const avatar = generateAvatar(username, 28);
 
             let replyHtml = "";
             if (replyTo) {
@@ -215,6 +355,7 @@
             }
 
             div.innerHTML = `
+                <div class="flex-shrink-0 mt-0.5 rounded-full overflow-hidden">${avatar}</div>
                 <span class="${nameClass} font-medium text-sm whitespace-nowrap mt-0.5">${escapeHtml(username)}</span>
                 <div class="flex-1 min-w-0">
                     ${replyHtml}
@@ -231,8 +372,13 @@
                 </div>
             `;
         }
+        var wasNearBottom = isNearBottom();
         chatMessages.appendChild(div);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        if (wasNearBottom) {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        } else {
+            scrollBottomBtn.classList.remove("hidden");
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -282,6 +428,8 @@
                 appendMessage(null, data.message, true);
             } else if (data.type === "reaction_update") {
                 handleReactionUpdate(data);
+            } else if (data.type === "presence_update") {
+                updateOnlineUsers(data.users);
             } else {
                 appendMessage(data.username, data.message, false, data.message_id, data.reply_to);
             }
@@ -311,7 +459,7 @@
         const username = msgEl.dataset.username;
         const raw = msgEl.dataset.raw || "";
         replyPreviewUsername.textContent = username;
-        replyPreviewContent.textContent = raw.length > 100 ? raw.slice(0, 100) + "…" : raw;
+        replyPreviewContent.textContent = raw.length > 100 ? raw.slice(0, 100) + "\u2026" : raw;
         replyPreview.classList.remove("hidden");
         chatInput.focus();
     }
@@ -659,8 +807,30 @@
         isSwiping = false;
     });
 
-    // Scroll to bottom on page load
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    // -----------------------------------------------------------------------
+    // Scroll-to-bottom button (event listeners)
+    // -----------------------------------------------------------------------
+    function updateScrollBtn() {
+        if (isNearBottom()) {
+            scrollBottomBtn.classList.add("hidden");
+        } else {
+            scrollBottomBtn.classList.remove("hidden");
+        }
+    }
+
+    chatMessages.addEventListener("scroll", updateScrollBtn, { passive: true });
+
+    scrollBottomBtn.addEventListener("click", function() {
+        chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: "smooth" });
+    });
+
+    // Scroll to bottom on page load (robust: retry for slow image loads)
+    function scrollToBottom() {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    scrollToBottom();
+    setTimeout(scrollToBottom, 300);
+    setTimeout(scrollToBottom, 1000);
 
     // Connect
     connect();

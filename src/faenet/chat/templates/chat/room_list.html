@@ -23,8 +23,9 @@
                         {{ room.description }}
                     </p>
                 {% endif %}
-                <div class="mt-4 flex items-center text-xs text-gray-600">
+                <div class="mt-4 flex items-center space-x-2 text-xs text-gray-600">
                     {% if room.created_by %}
+                        <span class="avatar-slot inline-block rounded-full overflow-hidden flex-shrink-0" data-username="{{ room.created_by.username }}" data-size="20"></span>
                         <span>Created by <span class="text-amber-400/70">{{ room.created_by.username }}</span></span>
                     {% endif %}
                 </div>

@@ -4,6 +4,7 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 from .models import ChatRoom, Message, Reaction
+from .presence import should_announce, user_joined, user_left
 from .utils import is_valid_emoji
 
 
@@ -30,25 +31,53 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
 
-        # Notify room that user joined
-        await self.channel_layer.group_send(
-            self.room_group_name,
-            {
-                "type": "system_message",
-                "message": f"{self.user.username} has entered the chamber",
-            },
+        # Track presence keyed by channel_name (handles multi-tab + stale entries)
+        online_users = user_joined(
+            self.room_slug, self.user.username, self.channel_name
         )
 
-    async def disconnect(self, close_code):
-        if hasattr(self, "room_group_name") and not self.user.is_anonymous:
-            # Notify room that user left
+        # Send current online list to the joining user (unicast)
+        await self.send(
+            text_data=json.dumps({"type": "presence_update", "users": online_users})
+        )
+
+        # Notify room that user joined (debounced to suppress rapid refresh spam)
+        if should_announce(self.room_slug, self.user.username, "join"):
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
                     "type": "system_message",
-                    "message": f"{self.user.username} has left the chamber",
+                    "message": f"{self.user.username} has entered the chamber",
                 },
             )
+
+        # Broadcast updated presence to all users
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {"type": "presence_update_broadcast", "users": online_users},
+        )
+
+    async def disconnect(self, close_code):
+        if hasattr(self, "room_group_name") and not self.user.is_anonymous:
+            # Remove this specific connection from presence
+            online_users = user_left(self.room_slug, self.channel_name)
+
+            # Notify room that user left (debounced to suppress rapid refresh spam)
+            if should_announce(self.room_slug, self.user.username, "leave"):
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        "type": "system_message",
+                        "message": f"{self.user.username} has left the chamber",
+                    },
+                )
+
+            # Broadcast updated presence to all users
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {"type": "presence_update_broadcast", "users": online_users},
+            )
+
             # Leave the room group
             await self.channel_layer.group_discard(
                 self.room_group_name, self.channel_name
@@ -137,6 +166,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     "count": event["count"],
                 }
             )
+        )
+
+    async def presence_update_broadcast(self, event):
+        """Handle presence_update_broadcast events from the channel layer."""
+        await self.send(
+            text_data=json.dumps({"type": "presence_update", "users": event["users"]})
         )
 
     async def system_message(self, event):

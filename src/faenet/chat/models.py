@@ -48,6 +48,12 @@ class Message(models.Model):
 
     class Meta:
         ordering = ["created_at"]
+        indexes = [
+            models.Index(
+                fields=["room", "-created_at"],
+                name="idx_message_room_created",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.user.username}: {self.content[:50]}"
