@@ -4,6 +4,35 @@ A fully working Django Channels chat application that demonstrates an example co
 
 This repo exists because getting CSRF, WebSocket, sessions, and fail2ban to all work correctly behind a reverse proxy is surprisingly tricky — and the errors are confusing. Every setting is heavily commented to explain _why_ it's needed.
 
+## Table of Contents
+
+- [Architecture](#architecture)
+- [Quick Start](#quick-start)
+- [Test Users](#test-users)
+- [Chat Features](#chat-features)
+  - [Real-Time Messaging](#real-time-messaging)
+  - [Reactions and Replies](#reactions-and-replies)
+  - [Emoji-Only Messages](#emoji-only-messages)
+  - [GIF Search (Giphy)](#gif-search-giphy)
+  - [SVG Avatars](#svg-avatars)
+  - [Online Presence](#online-presence)
+- [PWA Support](#pwa-support)
+  - [Manifest and Icons](#manifest-and-icons)
+  - [Service Worker Caching](#service-worker-caching)
+  - [Push Notification Plumbing](#push-notification-plumbing)
+- [Database Migrations and Indexing](#database-migrations-and-indexing)
+  - [Models](#models)
+  - [Indexes](#indexes)
+  - [Running Migrations](#running-migrations)
+- [The CSRF Problem Explained](#the-csrf-problem-explained)
+- [fail2ban Pitfalls](#fail2ban-pitfalls)
+- [WebSocket Through Nginx](#websocket-through-nginx)
+- [Logout Flow](#logout-flow)
+- [Mobile Viewport](#mobile-viewport)
+- [Makefile Commands](#makefile-commands)
+- [Troubleshooting](#troubleshooting)
+- [Tech Stack](#tech-stack)
+
 ## Architecture
 
 ```
@@ -12,7 +41,7 @@ Internet → Ngrok (https://faeries.ngrok.app)
          → Nginx (reverse proxy + static files + access logging)
          → Daphne/Django (HTTP + WebSocket via ASGI)
          → PostgreSQL (database)
-         → Redis (WebSocket channel layer)
+         → Redis (WebSocket channel layer + presence tracking)
 ```
 
 ## Quick Start
@@ -55,6 +84,167 @@ All users have the password `faerie123` unless noted otherwise.
 | cobweb      | Cobweb Silkspinner     | User  | faerie123 |
 | mustardseed | Mustardseed Goldenleaf | User  | faerie123 |
 | omni        | Omni Voidwalker        | User  | omnifae42 |
+
+## Chat Features
+
+### Real-Time Messaging
+
+Messages are sent over WebSocket using Django Channels with a Redis channel layer. Each chat room maps to a channel layer group (`chat_{slug}`). Messages are persisted to PostgreSQL and broadcast to all connected users in real time.
+
+The last 50 messages are loaded on page entry (newest at the bottom), and new messages stream in via WebSocket. A floating scroll-to-bottom button appears when the user scrolls up, and auto-scroll only triggers when the user is near the bottom of the chat to avoid disrupting reading.
+
+### Reactions and Replies
+
+Users can react to messages with emoji. Clicking a reaction badge toggles it (add/remove). The reaction state is stored per user per emoji per message via a `UniqueConstraint`, and counts are broadcast to all users in real time.
+
+Replies are supported through a swipe-right gesture on mobile or a reply button on hover (desktop). A reply preview bar appears above the input showing the parent message, and the reply is rendered inline with a purple left border linking back to the original.
+
+### Emoji-Only Messages
+
+Messages containing only emoji characters render at a larger size for visual impact — similar to iMessage and WhatsApp:
+
+| Emoji Count | Size Class |
+| ----------- | ---------- |
+| 1–3 emoji   | `text-4xl` |
+| 4–6 emoji   | `text-2xl` |
+| 7+ emoji    | Normal     |
+
+Detection uses the `Extended_Pictographic` Unicode property with handling for ZWJ sequences, variation selectors, and skin tone modifiers.
+
+### GIF Search (Giphy)
+
+If a `GIPHY_API_KEY` is set in the environment, a GIF button appears in the chat input bar. It opens a panel with trending GIFs and a search field. Selecting a GIF sends its URL as a message, which is unfurled inline as an embedded image for all users.
+
+### SVG Avatars
+
+Every user gets a deterministic SVG avatar generated client-side from their username. The generator uses FNV-1a hashing to select:
+
+- A gradient color pair from a curated palette of purples, teals, and ambers
+- A gradient angle (0°, 90°, 180°, 270°)
+- An eye style (circles, dots, closed, wink)
+- A mouth style (smile, grin, cat, line)
+
+Avatars appear in the navbar, chat messages, room list cards, and the online users panel. No external service or image storage is required — the same username always produces the same avatar.
+
+### Online Presence
+
+A live "Online" sidebar shows who's currently connected to each chat room.
+
+**How it works:**
+
+- Each WebSocket connection is tracked in a Redis HASH (`presence:{slug}`), keyed by `channel_name` with the `username` as the value
+- This handles multi-tab correctly — the same user with 3 tabs appears once in the list, and is only removed when all tabs close
+- On server startup, `flush_all_presence()` clears all stale entries from a previous process that exited without clean disconnects
+- Join/leave system messages ("has entered the chamber" / "has left the chamber") are debounced with a 120-second cooldown using `SET NX EX` to suppress spam from page refreshes and reconnects
+
+**UI:**
+
+- **Desktop**: Sidebar is always visible to the right of the chat (w-56)
+- **Mobile**: Hidden by default, toggled via a users icon in the room header, renders as a slide-in overlay
+
+## PWA Support
+
+The app is installable as a Progressive Web App on mobile and desktop. All PWA assets are served as Django views — no static files or build step required.
+
+### Manifest and Icons
+
+`/manifest.json` serves the PWA manifest with app metadata (name, theme color, display mode). Icons at `/pwa/icon-192.svg` and `/pwa/icon-512.svg` are generated on-the-fly as SVG with a purple-to-teal gradient and the letter "F".
+
+```
+GET /manifest.json    → pwa.manifest()
+GET /pwa/icon-192.svg → pwa.pwa_icon(size=192)
+GET /pwa/icon-512.svg → pwa.pwa_icon(size=512)
+```
+
+### Service Worker Caching
+
+`/sw.js` registers a service worker with two caching strategies:
+
+| Resource Type          | Strategy      | Why                                       |
+| ---------------------- | ------------- | ----------------------------------------- |
+| CDN assets (Tailwind, fonts, icons) | Cache-first   | Versioned URLs, safe to cache long-term |
+| HTML pages             | Network-first | Serves latest content; falls back to cache offline |
+| WebSocket connections  | Ignored       | Service workers cannot proxy WebSocket    |
+| Non-GET requests       | Pass-through  | POST/PUT are dynamic by nature            |
+
+On install, the service worker pre-caches all CDN URLs. On activate, it cleans up old cache versions.
+
+### Push Notification Plumbing
+
+The service worker includes `push` and `notificationclick` event handlers, ready for a future push notification backend. In the chat room, a dismissable banner prompts users to enable notification permissions (choice persisted in `localStorage`).
+
+## Database Migrations and Indexing
+
+### Models
+
+The chat app has three models:
+
+| Model      | Purpose                | Key Fields                                        |
+| ---------- | ---------------------- | ------------------------------------------------- |
+| `ChatRoom` | Chat room container    | `name`, `slug`, `description`, `created_by`       |
+| `Message`  | Individual messages    | `room` (FK), `user` (FK), `content`, `parent` (self-FK for replies), `created_at` |
+| `Reaction` | Emoji reactions        | `message` (FK), `user` (FK), `emoji`              |
+
+### Indexes
+
+Database indexes are defined in the model `Meta` classes and created via Django migrations:
+
+```python
+# Message — composite index for the main room detail query
+# (fetch last 50 messages per room, ordered by newest first)
+class Meta:
+    ordering = ["created_at"]
+    indexes = [
+        models.Index(
+            fields=["room", "-created_at"],
+            name="idx_message_room_created",
+        ),
+    ]
+
+# Reaction — composite index for counting reactions per emoji
+class Meta:
+    indexes = [
+        models.Index(
+            fields=["message", "emoji"],
+            name="idx_reaction_msg_emoji",
+        ),
+    ]
+    constraints = [
+        models.UniqueConstraint(
+            fields=["message", "user", "emoji"],
+            name="unique_user_reaction_per_emoji",
+        ),
+    ]
+```
+
+**Why these indexes matter:**
+
+- `idx_message_room_created` — The room detail view runs `room.messages.order_by("-created_at")[:50]`. Without this composite index, PostgreSQL would scan all messages for the room and sort them. With the index, it's an index-only scan that returns the 50 newest directly.
+- `idx_reaction_msg_emoji` — After toggling a reaction, the consumer counts reactions per emoji: `Reaction.objects.filter(message=message, emoji=emoji).count()`. This index covers that exact query.
+- `unique_user_reaction_per_emoji` — Enforces at the database level that a user can only have one reaction of each emoji type per message (also creates an implicit index).
+
+### Running Migrations
+
+Migrations run automatically on container startup via the entrypoint script. To run them manually:
+
+```bash
+# Via Makefile
+make migrate
+
+# Or directly
+docker compose exec web python manage.py migrate
+
+# To create new migrations after model changes
+docker compose exec web python manage.py makemigrations chat
+```
+
+Migration history:
+
+| Migration | Description |
+| --------- | ----------- |
+| `0001_initial` | ChatRoom and Message models |
+| `0002_reactions_and_replies` | Reaction model, Message.parent self-FK |
+| `0003_add_message_room_created_index` | Composite index on `(room, -created_at)` |
 
 ## The CSRF Problem Explained
 
@@ -165,6 +355,16 @@ Django's `LogoutView` clears the session and sets an expired session cookie. Beh
 
 `LOGOUT_REDIRECT_URL = "/accounts/login/"` sends the user back to the login page after logout.
 
+## Mobile Viewport
+
+The app handles mobile browser chrome (Safari's dynamic toolbar, Android's navigation bar) with several techniques:
+
+- `viewport-fit=cover` in the viewport meta tag to extend into safe areas
+- `env(safe-area-inset-*)` CSS functions for notch and home indicator spacing on the nav bar and chat input
+- `100svh` (small viewport height) for the chat container to avoid content hiding behind the browser's bottom toolbar
+- Responsive GIF images with `max-width: min(20rem, 100%)` to prevent overflow on narrow screens
+- `overflow-x: hidden` and `max-width: 100vw` on the body to prevent horizontal scroll
+
 ## Makefile Commands
 
 | Command        | Description                            |
@@ -208,6 +408,12 @@ Django's `LogoutView` clears the session and sets an expired session cookie. Beh
 - If using Ngrok (HTTPS) with `DEBUG=True`, session cookies won't have the `Secure` flag, which is correct for development
 - If using Ngrok with `DEBUG=False`, ensure `SESSION_COOKIE_SECURE=True` is set (it is by default when `DEBUG=False`)
 
+### Online Panel Shows Stale Users
+
+- Presence data is flushed on server startup via `flush_all_presence()` in `ChatConfig.ready()`
+- If users appear stuck after a crash or force-stop, restart the web container: `docker compose restart web`
+- Multi-tab is handled correctly — a user is only removed from the panel when all their tabs disconnect
+
 ## Tech Stack
 
 | Component     | Choice                          | Why                                  |
@@ -219,3 +425,7 @@ Django's `LogoutView` clears the session and sets an expired session cookie. Beh
 | Auth          | Django built-in                 | Handles CSRF correctly by default    |
 | Proxy         | Nginx                           | Industry standard, WebSocket support |
 | Tunnel        | Ngrok                           | Free HTTPS tunneling for development |
+| Presence      | Redis HASH                      | Ephemeral, no DB overhead            |
+| PWA           | Django views (inline JS/JSON)   | No static files or build step        |
+| Icons         | Phosphor Icons (CDN)            | Lightweight, consistent style        |
+| Emoji Picker  | emoji-picker-element (CDN)      | Web component, no framework needed   |
