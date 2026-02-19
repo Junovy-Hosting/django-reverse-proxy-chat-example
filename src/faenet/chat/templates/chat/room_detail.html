@@ -316,6 +316,30 @@
     }
 
     // -----------------------------------------------------------------------
+    // Emoji-only detection — show jumbo emoji for short emoji-only messages
+    // -----------------------------------------------------------------------
+    function isEmojiOnly(text) {
+        const trimmed = text.trim();
+        if (!trimmed) return false;
+        // Strip all Extended_Pictographic, ZWJ, variation selectors, skin tone modifiers
+        const stripped = trimmed
+            .replace(/\p{Extended_Pictographic}/gu, "")
+            .replace(/[\u200D\uFE0F\u{1F3FB}-\u{1F3FF}]/gu, "")
+            .trim();
+        return stripped.length === 0;
+    }
+
+    function emojiSizeClass(text) {
+        if (!isEmojiOnly(text)) return null;
+        // Count top-level emoji (ZWJ sequences = 1 visual glyph)
+        const matches = text.trim().match(/\p{Extended_Pictographic}(?:\uFE0F)?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F)?)*/gu);
+        const count = matches ? matches.length : 0;
+        if (count <= 3) return "text-4xl";
+        if (count <= 6) return "text-2xl";
+        return null;
+    }
+
+    // -----------------------------------------------------------------------
     // Scroll-to-bottom helpers (declared early so appendMessage can use them)
     // -----------------------------------------------------------------------
     const scrollBottomBtn = document.getElementById("scroll-bottom-btn");
@@ -343,6 +367,8 @@
             const escaped = escapeHtml(message);
             const rendered = renderMessageContent(escaped);
             const avatar = generateAvatar(username, 28);
+            const jumbo = emojiSizeClass(message);
+            const msgSizeClass = jumbo || "text-sm";
 
             let replyHtml = "";
             if (replyTo) {
@@ -359,7 +385,7 @@
                 <span class="${nameClass} font-medium text-sm whitespace-nowrap mt-0.5">${escapeHtml(username)}</span>
                 <div class="flex-1 min-w-0">
                     ${replyHtml}
-                    <div class="text-gray-300 text-sm leading-relaxed">${rendered}</div>
+                    <div class="text-gray-300 ${msgSizeClass} leading-relaxed">${rendered}</div>
                     <div class="reactions-container flex flex-wrap gap-1 mt-1"></div>
                 </div>
                 <div class="action-bar absolute -top-3 right-0 hidden group-hover:flex items-center space-x-0.5 bg-fae-card border border-fae-border rounded-lg shadow-lg px-1 py-0.5 z-10">
@@ -387,10 +413,21 @@
     document.querySelectorAll("[data-raw]").forEach(function(el) {
         const raw = el.dataset.raw;
         const body = el.querySelector(".msg-body");
-        if (raw && body && GIF_URL_PATTERN.test(raw)) {
+        if (!raw || !body) return;
+
+        // GIF unfurling
+        if (GIF_URL_PATTERN.test(raw)) {
             GIF_URL_PATTERN.lastIndex = 0;
             const escaped = escapeHtml(raw);
             body.outerHTML = `<div class="text-gray-300 text-sm leading-relaxed msg-body">${renderMessageContent(escaped)}</div>`;
+            return;
+        }
+
+        // Emoji-only jumbo sizing
+        const jumbo = emojiSizeClass(raw);
+        if (jumbo) {
+            body.classList.remove("text-sm");
+            body.classList.add(jumbo);
         }
     });
 
