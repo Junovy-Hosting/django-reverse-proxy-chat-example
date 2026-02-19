@@ -1,0 +1,662 @@
+{% extends "base.html" %}
+{% block title %}{{ room.name }} - Faerie Chat{% endblock %}
+
+{% block main_class %}h-[calc(100vh-4rem)] flex flex-col{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-3 border-b border-fae-border bg-fae-deeper/50">
+    <div class="flex items-center space-x-4">
+        <a href="{% url 'room_list' %}" class="text-gray-500 hover:text-teal-400 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+        </a>
+        <h1 class="font-cinzel text-lg font-semibold text-purple-300">{{ room.name }}</h1>
+    </div>
+    <div id="connection-status" class="flex items-center space-x-2 text-xs">
+        <span id="status-dot" class="w-2 h-2 rounded-full bg-yellow-500"></span>
+        <span id="status-text" class="text-gray-500">Connecting...</span>
+    </div>
+</div>
+
+<div id="chat-messages" class="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 space-y-3">
+    {% for msg in chat_messages %}
+        <div class="group relative flex items-start space-x-3"
+             data-message-id="{{ msg.id }}"
+             data-username="{{ msg.user.username }}"
+             data-raw="{{ msg.content|escapejs }}">
+            <span class="{% if msg.user.username == user.username %}text-teal-400{% else %}text-amber-400{% endif %} font-medium text-sm whitespace-nowrap mt-0.5">{{ msg.user.username }}</span>
+            <div class="flex-1 min-w-0">
+                {% if msg.parent %}
+                <div class="reply-parent cursor-pointer border-l-2 border-purple-500 pl-2 mb-1 text-xs text-gray-400 hover:text-gray-300 transition-colors"
+                     data-parent-id="{{ msg.parent.id }}">
+                    <span class="font-medium text-purple-400">{{ msg.parent.user.username }}</span>
+                    <span class="ml-1 truncate inline-block max-w-[200px] align-bottom">{{ msg.parent.content|truncatechars:100 }}</span>
+                </div>
+                {% endif %}
+                <p class="text-gray-300 text-sm leading-relaxed msg-body">{{ msg.content }}</p>
+                {% if msg.reaction_list %}
+                <div class="reactions-container flex flex-wrap gap-1 mt-1">
+                    {% for r in msg.reaction_list %}
+                    <button class="reaction-badge inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-full text-xs border transition-colors
+                        {% if r.reacted_by_me %}bg-purple-900/40 border-purple-500 text-purple-300{% else %}bg-gray-800/50 border-fae-border text-gray-400 hover:border-purple-500{% endif %}"
+                        data-emoji="{{ r.emoji }}">
+                        <span>{{ r.emoji }}</span>
+                        <span class="reaction-count">{{ r.count }}</span>
+                    </button>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="reactions-container flex flex-wrap gap-1 mt-1"></div>
+                {% endif %}
+            </div>
+            <!-- Action bar -->
+            <div class="action-bar absolute -top-3 right-0 hidden group-hover:flex items-center space-x-0.5 bg-fae-card border border-fae-border rounded-lg shadow-lg px-1 py-0.5 z-10">
+                <button class="action-react p-1 text-gray-400 hover:text-purple-400 transition-colors" title="React">
+                    <i class="ph ph-smiley text-base"></i>
+                </button>
+                <button class="action-reply p-1 text-gray-400 hover:text-teal-400 transition-colors" title="Reply">
+                    <i class="ph ph-arrow-bend-up-left text-base"></i>
+                </button>
+            </div>
+        </div>
+    {% endfor %}
+</div>
+
+<!-- Quick reaction picker (floating, hidden) -->
+<div id="quick-reaction-picker" class="hidden absolute z-50 bg-fae-card border border-fae-border rounded-lg shadow-xl px-2 py-1.5 flex items-center space-x-1">
+    <button class="quick-emoji text-lg hover:scale-125 transition-transform" data-emoji="❤️">❤️</button>
+    <button class="quick-emoji text-lg hover:scale-125 transition-transform" data-emoji="😂">😂</button>
+    <button class="quick-emoji text-lg hover:scale-125 transition-transform" data-emoji="👍">👍</button>
+    <button class="quick-emoji text-lg hover:scale-125 transition-transform" data-emoji="🔥">🔥</button>
+    <button class="quick-emoji text-lg hover:scale-125 transition-transform" data-emoji="👀">👀</button>
+    <button class="quick-emoji text-lg hover:scale-125 transition-transform" data-emoji="🎉">🎉</button>
+    <button id="quick-emoji-plus" class="text-lg text-gray-500 hover:text-purple-400 transition-colors px-0.5" title="More emoji">+</button>
+</div>
+
+<div class="px-4 sm:px-6 lg:px-8 py-4 border-t border-fae-border bg-fae-deeper/50 relative">
+    <!-- Reply Preview Bar -->
+    <div id="reply-preview" class="hidden mb-2 flex items-center bg-fae-card border border-fae-border rounded-lg px-3 py-2">
+        <div class="border-l-2 border-purple-500 pl-2 flex-1 min-w-0">
+            <span id="reply-preview-username" class="text-purple-400 text-xs font-medium"></span>
+            <p id="reply-preview-content" class="text-gray-400 text-xs truncate"></p>
+        </div>
+        <button id="reply-cancel" class="ml-2 text-gray-500 hover:text-red-400 transition-colors flex-shrink-0">
+            <i class="ph ph-x text-base"></i>
+        </button>
+    </div>
+
+    <!-- Emoji Picker (floating, hidden by default) -->
+    <div id="emoji-picker-container" class="hidden absolute bottom-full left-4 mb-2 z-50">
+        <emoji-picker></emoji-picker>
+    </div>
+
+    <!-- Giphy Panel (floating, hidden by default) -->
+    <div id="giphy-panel" class="hidden absolute bottom-full left-4 mb-2 z-50 w-80 max-h-96 bg-fae-card border border-fae-border rounded-lg shadow-xl flex flex-col overflow-hidden">
+        <div class="p-3 border-b border-fae-border">
+            <input type="text" id="giphy-search-input" placeholder="Search GIFs..."
+                   class="w-full bg-gray-800/50 border border-fae-border rounded-md px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-purple-500">
+        </div>
+        <div id="giphy-results" class="flex-1 overflow-y-auto p-2 grid grid-cols-2 gap-2">
+            <p id="giphy-placeholder" class="col-span-2 text-center text-gray-500 text-xs py-4">Loading trending GIFs...</p>
+        </div>
+        <div class="px-3 py-1.5 border-t border-fae-border">
+            <span class="text-gray-600 text-[10px]">Powered by GIPHY</span>
+        </div>
+    </div>
+
+    <form id="chat-form" class="flex items-center space-x-2">
+        <!-- Emoji button -->
+        <button type="button" id="emoji-btn" title="Emoji"
+                class="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-gray-800/50 border border-fae-border rounded-lg text-gray-400 hover:text-purple-400 hover:border-purple-500 transition-colors focus:outline-none focus:border-purple-500">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </button>
+
+        <!-- GIF button (hidden if Giphy not configured) -->
+        <button type="button" id="gif-btn" title="Send a GIF" style="display:none"
+                class="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-gray-800/50 border border-fae-border rounded-lg text-gray-400 hover:text-teal-400 hover:border-teal-500 transition-colors focus:outline-none focus:border-teal-500">
+            <span class="text-xs font-bold">GIF</span>
+        </button>
+
+        <input type="text" id="chat-input" autocomplete="off"
+               class="flex-1 bg-gray-800/50 border border-fae-border rounded-lg px-4 py-3 text-gray-100 placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-colors"
+               placeholder="Whisper into the void...">
+        <button type="submit"
+                class="px-6 py-3 bg-gradient-to-r from-purple-600 to-teal-600 hover:from-purple-500 hover:to-teal-500 text-white font-semibold rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500">
+            Send
+        </button>
+    </form>
+</div>
+
+<style>
+    .highlight-flash {
+        animation: flash-highlight 1.5s ease-out;
+    }
+    @keyframes flash-highlight {
+        0%, 20% { background-color: rgba(168, 85, 247, 0.25); }
+        100% { background-color: transparent; }
+    }
+</style>
+
+<script>
+    const roomSlug = "{{ room.slug }}";
+    const currentUser = "{{ user.username }}";
+    const chatMessages = document.getElementById("chat-messages");
+    const chatForm = document.getElementById("chat-form");
+    const chatInput = document.getElementById("chat-input");
+    const statusDot = document.getElementById("status-dot");
+    const statusText = document.getElementById("status-text");
+
+    let ws = null;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 10;
+
+    // Reply state
+    let replyToMessageId = null;
+    const replyPreview = document.getElementById("reply-preview");
+    const replyPreviewUsername = document.getElementById("reply-preview-username");
+    const replyPreviewContent = document.getElementById("reply-preview-content");
+    const replyCancelBtn = document.getElementById("reply-cancel");
+
+    // Reaction state
+    let activeReactionMessageId = null;
+    const quickPicker = document.getElementById("quick-reaction-picker");
+    let emojiPickerReactionMode = false;
+
+    const wsScheme = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${wsScheme}//${window.location.host}/ws/chat/${roomSlug}/`;
+
+    // -----------------------------------------------------------------------
+    // URL Unfurling — detect GIF URLs and render inline
+    // -----------------------------------------------------------------------
+    const GIF_URL_PATTERN = /https?:\/\/(?:media[0-9]?\.giphy\.com|media\.tenor\.com|i\.giphy\.com)\/\S+\.(?:gif|webp|mp4)/gi;
+
+    function renderMessageContent(escapedHtml) {
+        return escapedHtml.replace(GIF_URL_PATTERN, function(url) {
+            return `<img src="${url}" alt="GIF" loading="lazy" class="rounded-lg max-w-xs mt-1 cursor-pointer" onclick="window.open('${url}', '_blank')">`;
+        });
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // -----------------------------------------------------------------------
+    // Append message (supports replies and reactions)
+    // -----------------------------------------------------------------------
+    function appendMessage(username, message, isSystem, messageId, replyTo) {
+        const div = document.createElement("div");
+        if (isSystem) {
+            div.className = "text-center";
+            div.innerHTML = `<span class="text-purple-500/60 text-xs italic">${escapeHtml(message)}</span>`;
+        } else {
+            div.className = "group relative flex items-start space-x-3";
+            if (messageId) {
+                div.dataset.messageId = messageId;
+                div.dataset.username = username;
+                div.dataset.raw = message;
+            }
+            const nameClass = username === currentUser ? "text-teal-400" : "text-amber-400";
+            const escaped = escapeHtml(message);
+            const rendered = renderMessageContent(escaped);
+
+            let replyHtml = "";
+            if (replyTo) {
+                replyHtml = `
+                    <div class="reply-parent cursor-pointer border-l-2 border-purple-500 pl-2 mb-1 text-xs text-gray-400 hover:text-gray-300 transition-colors"
+                         data-parent-id="${replyTo.message_id}">
+                        <span class="font-medium text-purple-400">${escapeHtml(replyTo.username)}</span>
+                        <span class="ml-1 truncate inline-block max-w-[200px] align-bottom">${escapeHtml(replyTo.content)}</span>
+                    </div>`;
+            }
+
+            div.innerHTML = `
+                <span class="${nameClass} font-medium text-sm whitespace-nowrap mt-0.5">${escapeHtml(username)}</span>
+                <div class="flex-1 min-w-0">
+                    ${replyHtml}
+                    <div class="text-gray-300 text-sm leading-relaxed">${rendered}</div>
+                    <div class="reactions-container flex flex-wrap gap-1 mt-1"></div>
+                </div>
+                <div class="action-bar absolute -top-3 right-0 hidden group-hover:flex items-center space-x-0.5 bg-fae-card border border-fae-border rounded-lg shadow-lg px-1 py-0.5 z-10">
+                    <button class="action-react p-1 text-gray-400 hover:text-purple-400 transition-colors" title="React">
+                        <i class="ph ph-smiley text-base"></i>
+                    </button>
+                    <button class="action-reply p-1 text-gray-400 hover:text-teal-400 transition-colors" title="Reply">
+                        <i class="ph ph-arrow-bend-up-left text-base"></i>
+                    </button>
+                </div>
+            `;
+        }
+        chatMessages.appendChild(div);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // -----------------------------------------------------------------------
+    // Unfurl server-rendered historic messages on page load
+    // -----------------------------------------------------------------------
+    document.querySelectorAll("[data-raw]").forEach(function(el) {
+        const raw = el.dataset.raw;
+        const body = el.querySelector(".msg-body");
+        if (raw && body && GIF_URL_PATTERN.test(raw)) {
+            GIF_URL_PATTERN.lastIndex = 0;
+            const escaped = escapeHtml(raw);
+            body.outerHTML = `<div class="text-gray-300 text-sm leading-relaxed msg-body">${renderMessageContent(escaped)}</div>`;
+        }
+    });
+
+    // -----------------------------------------------------------------------
+    // Connection status
+    // -----------------------------------------------------------------------
+    function setStatus(state) {
+        if (state === "connected") {
+            statusDot.className = "w-2 h-2 rounded-full bg-green-500";
+            statusText.textContent = "Connected";
+            statusText.className = "text-green-500";
+        } else if (state === "disconnected") {
+            statusDot.className = "w-2 h-2 rounded-full bg-red-500";
+            statusText.textContent = "Disconnected";
+            statusText.className = "text-red-500";
+        } else {
+            statusDot.className = "w-2 h-2 rounded-full bg-yellow-500 animate-pulse";
+            statusText.textContent = "Connecting...";
+            statusText.className = "text-yellow-500";
+        }
+    }
+
+    function connect() {
+        setStatus("connecting");
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = function () {
+            setStatus("connected");
+            reconnectAttempts = 0;
+        };
+
+        ws.onmessage = function (event) {
+            const data = JSON.parse(event.data);
+            if (data.type === "system") {
+                appendMessage(null, data.message, true);
+            } else if (data.type === "reaction_update") {
+                handleReactionUpdate(data);
+            } else {
+                appendMessage(data.username, data.message, false, data.message_id, data.reply_to);
+            }
+        };
+
+        ws.onclose = function (event) {
+            setStatus("disconnected");
+            if (reconnectAttempts < maxReconnectAttempts) {
+                const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+                reconnectAttempts++;
+                setTimeout(connect, delay);
+            }
+        };
+
+        ws.onerror = function () {
+            ws.close();
+        };
+    }
+
+    // -----------------------------------------------------------------------
+    // Reply functions
+    // -----------------------------------------------------------------------
+    function activateReply(messageId) {
+        const msgEl = chatMessages.querySelector(`[data-message-id="${messageId}"]`);
+        if (!msgEl) return;
+        replyToMessageId = messageId;
+        const username = msgEl.dataset.username;
+        const raw = msgEl.dataset.raw || "";
+        replyPreviewUsername.textContent = username;
+        replyPreviewContent.textContent = raw.length > 100 ? raw.slice(0, 100) + "…" : raw;
+        replyPreview.classList.remove("hidden");
+        chatInput.focus();
+    }
+
+    function clearReplyPreview() {
+        replyToMessageId = null;
+        replyPreview.classList.add("hidden");
+        replyPreviewUsername.textContent = "";
+        replyPreviewContent.textContent = "";
+    }
+
+    replyCancelBtn.addEventListener("click", clearReplyPreview);
+
+    // -----------------------------------------------------------------------
+    // Reaction functions
+    // -----------------------------------------------------------------------
+    function sendReaction(messageId, emoji) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "reaction", message_id: messageId, emoji: emoji }));
+        }
+        hideQuickPicker();
+    }
+
+    function handleReactionUpdate(data) {
+        const msgEl = chatMessages.querySelector(`[data-message-id="${data.message_id}"]`);
+        if (!msgEl) return;
+        const container = msgEl.querySelector(".reactions-container");
+        if (!container) return;
+
+        let badge = container.querySelector(`[data-emoji="${data.emoji}"]`);
+        if (data.count === 0 && badge) {
+            badge.remove();
+            return;
+        }
+        if (data.count > 0 && badge) {
+            badge.querySelector(".reaction-count").textContent = data.count;
+            // Update style based on whether current user reacted
+            const isMine = (data.action === "add" && data.username === currentUser) ||
+                           (data.action === "remove" && data.username === currentUser);
+            if (isMine) {
+                if (data.action === "add") {
+                    badge.className = badge.className.replace(/bg-gray-800\/50 border-fae-border text-gray-400 hover:border-purple-500/g, "bg-purple-900/40 border-purple-500 text-purple-300");
+                    if (!badge.classList.contains("bg-purple-900/40")) {
+                        badge.classList.remove("bg-gray-800/50", "border-fae-border", "text-gray-400", "hover:border-purple-500");
+                        badge.classList.add("bg-purple-900/40", "border-purple-500", "text-purple-300");
+                    }
+                } else {
+                    badge.classList.remove("bg-purple-900/40", "border-purple-500", "text-purple-300");
+                    badge.classList.add("bg-gray-800/50", "border-fae-border", "text-gray-400", "hover:border-purple-500");
+                }
+            }
+        } else if (data.count > 0 && !badge) {
+            badge = document.createElement("button");
+            const isMine = data.username === currentUser;
+            badge.className = `reaction-badge inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-full text-xs border transition-colors ${isMine ? "bg-purple-900/40 border-purple-500 text-purple-300" : "bg-gray-800/50 border-fae-border text-gray-400 hover:border-purple-500"}`;
+            badge.dataset.emoji = data.emoji;
+            badge.innerHTML = `<span>${data.emoji}</span><span class="reaction-count">${data.count}</span>`;
+            container.appendChild(badge);
+        }
+    }
+
+    function showQuickPicker(messageId, anchorEl) {
+        activeReactionMessageId = messageId;
+        const rect = anchorEl.getBoundingClientRect();
+        const chatRect = chatMessages.getBoundingClientRect();
+        quickPicker.style.top = (rect.bottom + window.scrollY + 4) + "px";
+        quickPicker.style.left = Math.min(rect.left, window.innerWidth - 260) + "px";
+        quickPicker.classList.remove("hidden");
+    }
+
+    function hideQuickPicker() {
+        quickPicker.classList.add("hidden");
+        activeReactionMessageId = null;
+        emojiPickerReactionMode = false;
+    }
+
+    // -----------------------------------------------------------------------
+    // Event delegation on #chat-messages
+    // -----------------------------------------------------------------------
+    chatMessages.addEventListener("click", function(e) {
+        // Reply parent click → scroll to parent
+        const replyParent = e.target.closest(".reply-parent");
+        if (replyParent) {
+            const parentId = replyParent.dataset.parentId;
+            const parentEl = chatMessages.querySelector(`[data-message-id="${parentId}"]`);
+            if (parentEl) {
+                parentEl.scrollIntoView({ behavior: "smooth", block: "center" });
+                parentEl.classList.add("highlight-flash");
+                setTimeout(function() { parentEl.classList.remove("highlight-flash"); }, 1500);
+            }
+            return;
+        }
+
+        // Action reply click
+        const replyBtn = e.target.closest(".action-reply");
+        if (replyBtn) {
+            const msgEl = replyBtn.closest("[data-message-id]");
+            if (msgEl) activateReply(msgEl.dataset.messageId);
+            return;
+        }
+
+        // Action react click → show quick picker
+        const reactBtn = e.target.closest(".action-react");
+        if (reactBtn) {
+            const msgEl = reactBtn.closest("[data-message-id]");
+            if (msgEl) showQuickPicker(msgEl.dataset.messageId, reactBtn);
+            return;
+        }
+
+        // Reaction badge click → toggle
+        const badge = e.target.closest(".reaction-badge");
+        if (badge) {
+            const msgEl = badge.closest("[data-message-id]");
+            if (msgEl) sendReaction(msgEl.dataset.messageId, badge.dataset.emoji);
+            return;
+        }
+    });
+
+    // Quick emoji clicks
+    quickPicker.addEventListener("click", function(e) {
+        const quickBtn = e.target.closest(".quick-emoji");
+        if (quickBtn && activeReactionMessageId) {
+            sendReaction(activeReactionMessageId, quickBtn.dataset.emoji);
+            return;
+        }
+        // "+" button opens full emoji picker in reaction mode
+        if (e.target.closest("#quick-emoji-plus") && activeReactionMessageId) {
+            emojiPickerReactionMode = true;
+            const emojiContainer = document.getElementById("emoji-picker-container");
+            emojiContainer.classList.remove("hidden");
+            quickPicker.classList.add("hidden");
+        }
+    });
+
+    // -----------------------------------------------------------------------
+    // Form submit (includes reply_to)
+    // -----------------------------------------------------------------------
+    chatForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+        const message = chatInput.value.trim();
+        if (message && ws && ws.readyState === WebSocket.OPEN) {
+            const payload = { message: message };
+            if (replyToMessageId) {
+                payload.reply_to = parseInt(replyToMessageId, 10);
+            }
+            ws.send(JSON.stringify(payload));
+            chatInput.value = "";
+            clearReplyPreview();
+        }
+    });
+
+    // -----------------------------------------------------------------------
+    // Emoji Picker
+    // -----------------------------------------------------------------------
+    const emojiBtn = document.getElementById("emoji-btn");
+    const emojiContainer = document.getElementById("emoji-picker-container");
+    const emojiPicker = emojiContainer.querySelector("emoji-picker");
+
+    emojiBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        // Close giphy panel if open
+        giphyPanel.classList.add("hidden");
+        emojiPickerReactionMode = false;
+        emojiContainer.classList.toggle("hidden");
+    });
+
+    emojiPicker.addEventListener("emoji-click", function (e) {
+        const emoji = e.detail.unicode;
+        if (emojiPickerReactionMode && activeReactionMessageId) {
+            sendReaction(activeReactionMessageId, emoji);
+            emojiContainer.classList.add("hidden");
+            emojiPickerReactionMode = false;
+            return;
+        }
+        const input = chatInput;
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        input.value = input.value.slice(0, start) + emoji + input.value.slice(end);
+        input.selectionStart = input.selectionEnd = start + emoji.length;
+        input.focus();
+    });
+
+    // -----------------------------------------------------------------------
+    // Giphy Search Panel
+    // -----------------------------------------------------------------------
+    const gifBtn = document.getElementById("gif-btn");
+    const giphyPanel = document.getElementById("giphy-panel");
+    const giphySearchInput = document.getElementById("giphy-search-input");
+    const giphyResults = document.getElementById("giphy-results");
+    const giphyPlaceholder = document.getElementById("giphy-placeholder");
+    let giphyDebounceTimer = null;
+
+    // Check if Giphy is available, show button if so
+    fetch("{% url 'giphy_search' %}")
+        .then(function(r) {
+            if (r.ok) {
+                gifBtn.style.display = "flex";
+            }
+        })
+        .catch(function() {});
+
+    gifBtn.addEventListener("click", function(e) {
+        e.stopPropagation();
+        // Close emoji picker if open
+        emojiContainer.classList.add("hidden");
+        const isHidden = giphyPanel.classList.toggle("hidden");
+        if (!isHidden) {
+            giphySearchInput.value = "";
+            giphySearchInput.focus();
+            loadGiphyResults("");
+        }
+    });
+
+    function loadGiphyResults(query) {
+        const url = "{% url 'giphy_search' %}" + (query ? "?q=" + encodeURIComponent(query) : "");
+        giphyPlaceholder.textContent = "Loading...";
+        giphyPlaceholder.style.display = "block";
+
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(gifs) {
+                giphyResults.innerHTML = "";
+                if (!gifs.length) {
+                    giphyResults.innerHTML = '<p class="col-span-2 text-center text-gray-500 text-xs py-4">No GIFs found</p>';
+                    return;
+                }
+                gifs.forEach(function(gif) {
+                    const img = document.createElement("img");
+                    img.src = gif.preview_url;
+                    img.alt = gif.title || "GIF";
+                    img.title = gif.title || "GIF";
+                    img.className = "w-full h-24 object-cover rounded cursor-pointer hover:ring-2 hover:ring-purple-500 transition-all";
+                    img.addEventListener("click", function() {
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({ message: gif.url }));
+                        }
+                        giphyPanel.classList.add("hidden");
+                    });
+                    giphyResults.appendChild(img);
+                });
+            })
+            .catch(function() {
+                giphyResults.innerHTML = '<p class="col-span-2 text-center text-red-400 text-xs py-4">Failed to load GIFs</p>';
+            });
+    }
+
+    giphySearchInput.addEventListener("input", function() {
+        clearTimeout(giphyDebounceTimer);
+        giphyDebounceTimer = setTimeout(function() {
+            loadGiphyResults(giphySearchInput.value.trim());
+        }, 300);
+    });
+
+    // Close panels when clicking outside
+    document.addEventListener("click", function(e) {
+        if (!emojiContainer.contains(e.target) && e.target !== emojiBtn) {
+            emojiContainer.classList.add("hidden");
+        }
+        if (!giphyPanel.contains(e.target) && e.target !== gifBtn) {
+            giphyPanel.classList.add("hidden");
+        }
+        if (!quickPicker.contains(e.target) && !e.target.closest(".action-react")) {
+            hideQuickPicker();
+        }
+    });
+
+    // -----------------------------------------------------------------------
+    // Mobile: Long-press to show action bar
+    // -----------------------------------------------------------------------
+    let longPressTimer = null;
+    let longPressTarget = null;
+
+    chatMessages.addEventListener("touchstart", function(e) {
+        const msgEl = e.target.closest("[data-message-id]");
+        if (!msgEl) return;
+        longPressTarget = msgEl;
+        longPressTimer = setTimeout(function() {
+            const actionBar = msgEl.querySelector(".action-bar");
+            if (actionBar) {
+                actionBar.classList.remove("hidden");
+                actionBar.classList.add("flex");
+                // Auto-hide after 4 seconds
+                setTimeout(function() {
+                    actionBar.classList.add("hidden");
+                    actionBar.classList.remove("flex");
+                }, 4000);
+            }
+        }, 500);
+    });
+
+    chatMessages.addEventListener("touchend", function() {
+        clearTimeout(longPressTimer);
+    });
+
+    chatMessages.addEventListener("touchmove", function() {
+        clearTimeout(longPressTimer);
+    }, { passive: true });
+
+    // -----------------------------------------------------------------------
+    // Mobile: Swipe right to reply
+    // -----------------------------------------------------------------------
+    let swipeStartX = 0;
+    let swipeStartY = 0;
+    let swipeMsgEl = null;
+    let isSwiping = false;
+
+    chatMessages.addEventListener("touchstart", function(e) {
+        const msgEl = e.target.closest("[data-message-id]");
+        if (!msgEl) return;
+        swipeStartX = e.touches[0].clientX;
+        swipeStartY = e.touches[0].clientY;
+        swipeMsgEl = msgEl;
+        isSwiping = false;
+    });
+
+    chatMessages.addEventListener("touchmove", function(e) {
+        if (!swipeMsgEl) return;
+        const dx = e.touches[0].clientX - swipeStartX;
+        const dy = Math.abs(e.touches[0].clientY - swipeStartY);
+        // Must be mostly horizontal and rightward
+        if (dx > 10 && dx > dy) {
+            isSwiping = true;
+            e.preventDefault();
+            const offset = Math.min(dx, 80);
+            swipeMsgEl.style.transform = `translateX(${offset}px)`;
+            swipeMsgEl.style.transition = "none";
+        }
+    }, { passive: false });
+
+    chatMessages.addEventListener("touchend", function(e) {
+        if (!swipeMsgEl) return;
+        const dx = e.changedTouches[0].clientX - swipeStartX;
+        swipeMsgEl.style.transform = "";
+        swipeMsgEl.style.transition = "transform 0.2s ease";
+        if (isSwiping && dx > 60) {
+            activateReply(swipeMsgEl.dataset.messageId);
+        }
+        swipeMsgEl = null;
+        isSwiping = false;
+    });
+
+    // Scroll to bottom on page load
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    // Connect
+    connect();
+</script>
+{% endblock %}

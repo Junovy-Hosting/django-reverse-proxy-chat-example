@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Chambers - Faerie Chat{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-8">
+    <h1 class="font-cinzel text-2xl font-bold text-purple-300 glow-purple">Chat Chambers</h1>
+    <a href="{% url 'room_create' %}"
+       class="px-4 py-2 bg-gradient-to-r from-purple-600 to-teal-600 hover:from-purple-500 hover:to-teal-500 text-white text-sm font-semibold rounded-lg transition-all duration-200">
+        New Chamber
+    </a>
+</div>
+
+{% if rooms %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for room in rooms %}
+            <a href="{% url 'room_detail' room.slug %}"
+               class="group block bg-fae-card border border-fae-border rounded-xl p-6 hover:border-purple-500/50 transition-all duration-300 border-glow">
+                <h2 class="font-cinzel text-lg font-semibold text-teal-300 group-hover:text-teal-200 transition-colors mb-2">
+                    {{ room.name }}
+                </h2>
+                {% if room.description %}
+                    <p class="text-gray-500 text-sm leading-relaxed">
+                        {{ room.description }}
+                    </p>
+                {% endif %}
+                <div class="mt-4 flex items-center text-xs text-gray-600">
+                    {% if room.created_by %}
+                        <span>Created by <span class="text-amber-400/70">{{ room.created_by.username }}</span></span>
+                    {% endif %}
+                </div>
+            </a>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="text-center py-16">
+        <p class="text-gray-500 text-lg mb-4">No chambers have been conjured yet.</p>
+        <a href="{% url 'room_create' %}"
+           class="text-teal-400 hover:text-teal-300 transition-colors">
+            Create the first one
+        </a>
+    </div>
+{% endif %}
+{% endblock %}

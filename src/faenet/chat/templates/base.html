@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Faerie Chat{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        fae: {
+                            dark: '#0a0a0f',
+                            deeper: '#12121a',
+                            card: '#1a1a2e',
+                            border: '#2a2a3e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/bold/style.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .font-cinzel { font-family: 'Cinzel', serif; }
+        .glow-purple { text-shadow: 0 0 20px rgba(168, 85, 247, 0.4); }
+        .glow-teal { text-shadow: 0 0 20px rgba(45, 212, 191, 0.4); }
+        .border-glow { box-shadow: 0 0 15px rgba(168, 85, 247, 0.1), inset 0 0 15px rgba(168, 85, 247, 0.05); }
+        emoji-picker {
+            --background: #1a1a2e;
+            --border-color: #2a2a3e;
+            --input-border-color: #2a2a3e;
+            --indicator-color: #a855f7;
+            --category-font-color: #9ca3af;
+            --input-font-color: #e5e7eb;
+            --text-color: #e5e7eb;
+        }
+    </style>
+</head>
+<body class="h-full bg-fae-dark text-gray-200">
+    <nav class="bg-fae-deeper border-b border-fae-border">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <a href="{% url 'room_list' %}" class="flex items-center space-x-3">
+                    <span class="font-cinzel text-2xl font-bold bg-gradient-to-r from-purple-400 via-teal-400 to-purple-400 bg-clip-text text-transparent glow-purple">
+                        Faerie Chat
+                    </span>
+                </a>
+                <div class="flex items-center space-x-4">
+                    {% if user.is_authenticated %}
+                        <span class="text-amber-400 font-medium">{{ user.username }}</span>
+                        <form method="post" action="{% url 'logout' %}" class="inline">
+                            {% csrf_token %}
+                            <button type="submit"
+                                    class="text-gray-400 hover:text-teal-400 transition-colors text-sm cursor-pointer">
+                                Logout
+                            </button>
+                        </form>
+                    {% else %}
+                        <a href="{% url 'login' %}"
+                           class="text-gray-400 hover:text-teal-400 transition-colors text-sm">
+                            Login
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="{% block main_class %}max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8{% endblock %}">
+        {% if messages %}
+            <div class="mb-4 space-y-2">
+                {% for message in messages %}
+                    <div class="p-3 rounded-lg
+                        {% if message.tags == 'error' %}bg-red-900/30 border border-red-800 text-red-300
+                        {% elif message.tags == 'success' %}bg-green-900/30 border border-green-800 text-green-300
+                        {% else %}bg-purple-900/30 border border-purple-800 text-purple-300{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

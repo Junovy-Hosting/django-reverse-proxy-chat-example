@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en" style="height:100%">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>502 — Bad Gateway | Faerie Chat</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            height: 100%;
+            font-family: 'Inter', sans-serif;
+            background: #0a0a0f;
+            color: #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container { text-align: center; max-width: 32rem; padding: 1rem; }
+        .error-code {
+            font-family: 'Cinzel', serif;
+            font-size: clamp(5rem, 15vw, 9rem);
+            font-weight: 700;
+            background: linear-gradient(to right, #c084fc, #2dd4bf, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(168, 85, 247, 0.5);
+            user-select: none;
+            line-height: 1.1;
+        }
+        h1 {
+            margin-top: 1rem;
+            font-family: 'Cinzel', serif;
+            font-size: clamp(1.25rem, 4vw, 1.875rem);
+            font-weight: 600;
+            color: #f3f4f6;
+        }
+        .desc {
+            margin-top: 1rem;
+            color: #9ca3af;
+            line-height: 1.6;
+        }
+        .actions {
+            margin-top: 2rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            justify-content: center;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            font-size: 1rem;
+            text-decoration: none;
+            transition: background 0.2s, border-color 0.2s, color 0.2s;
+            cursor: pointer;
+            border: none;
+            font-family: 'Inter', sans-serif;
+        }
+        .btn-primary {
+            background: #9333ea;
+            color: #fff;
+        }
+        .btn-primary:hover { background: #a855f7; }
+        .btn-secondary {
+            background: transparent;
+            color: #d1d5db;
+            border: 1px solid #2a2a3e;
+        }
+        .btn-secondary:hover {
+            border-color: #a855f7;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <p class="error-code">502</p>
+        <h1>Realm Temporarily Unreachable</h1>
+        <p class="desc">
+            The application server is not responding. This usually means
+            a restart is in progress. Please try again in a few moments.
+        </p>
+        <div class="actions">
+            <a href="/" class="btn btn-primary">Go Home</a>
+            <button onclick="location.reload()" class="btn btn-secondary">Retry</button>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Login - Faerie Chat{% endblock %}
+
+{% block content %}
+<div class="min-h-[calc(100vh-12rem)] flex items-center justify-center">
+    <div class="w-full max-w-md">
+        <div class="bg-fae-card border border-fae-border rounded-2xl p-8 border-glow">
+            <h1 class="font-cinzel text-3xl font-bold text-center mb-2 bg-gradient-to-r from-purple-400 to-teal-400 bg-clip-text text-transparent">
+                Enter the Realm
+            </h1>
+            <p class="text-gray-500 text-center text-sm mb-8">Sign in to Faerie Chat</p>
+
+            {% if form.errors %}
+                <div class="mb-6 p-4 bg-red-900/30 border border-red-800 rounded-lg">
+                    <p class="text-red-300 text-sm">
+                        {% if form.non_field_errors %}
+                            {% for error in form.non_field_errors %}
+                                {{ error }}
+                            {% endfor %}
+                        {% else %}
+                            Invalid username or password. Please try again.
+                        {% endif %}
+                    </p>
+                </div>
+            {% endif %}
+
+            <form method="post" class="space-y-6">
+                {% csrf_token %}
+
+                <div>
+                    <label for="id_username" class="block text-sm font-medium text-gray-400 mb-2">
+                        Username
+                    </label>
+                    <input type="text" name="username" id="id_username" required autofocus
+                           class="w-full bg-gray-800/50 border border-fae-border rounded-lg px-4 py-3 text-gray-100 placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-colors"
+                           placeholder="Your fae name...">
+                </div>
+
+                <div>
+                    <label for="id_password" class="block text-sm font-medium text-gray-400 mb-2">
+                        Password
+                    </label>
+                    <input type="password" name="password" id="id_password" required
+                           class="w-full bg-gray-800/50 border border-fae-border rounded-lg px-4 py-3 text-gray-100 placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-colors"
+                           placeholder="Secret passphrase...">
+                </div>
+
+                {% if next %}
+                    <input type="hidden" name="next" value="{{ next }}">
+                {% endif %}
+
+                <button type="submit"
+                        class="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-teal-600 hover:from-purple-500 hover:to-teal-500 text-white font-semibold rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-fae-dark">
+                    Enter
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
