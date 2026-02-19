@@ -164,7 +164,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
         msg = Message.objects.create(
             room=room, user=self.user, content=content, parent=parent
         )
-        result = {"id": msg.id, "parent_id": None, "parent_username": None, "parent_content": None}
+        result = {
+            "id": msg.id,
+            "parent_id": None,
+            "parent_username": None,
+            "parent_content": None,
+        }
         if parent:
             result["parent_id"] = parent.id
             result["parent_username"] = parent.user.username
@@ -179,9 +184,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         except (ChatRoom.DoesNotExist, Message.DoesNotExist):
             return None
 
-        existing = Reaction.objects.filter(
-            message=message, user=self.user, emoji=emoji
-        )
+        existing = Reaction.objects.filter(message=message, user=self.user, emoji=emoji)
         if existing.exists():
             existing.delete()
             action = "remove"

@@ -4,21 +4,21 @@ import re
 # variation selectors, zero-width joiners, skin tone modifiers, and flag sequences.
 _EMOJI_RE = re.compile(
     "^("
-    "[\U0001F600-\U0001F64F"   # emoticons
-    "\U0001F300-\U0001F5FF"    # misc symbols & pictographs
-    "\U0001F680-\U0001F6FF"    # transport & map
-    "\U0001F900-\U0001F9FF"    # supplemental symbols
-    "\U0001FA00-\U0001FA6F"    # chess symbols
-    "\U0001FA70-\U0001FAFF"    # symbols extended-A
-    "\U00002702-\U000027B0"    # dingbats
-    "\U0000FE0F"               # variation selector-16
-    "\U0000200D"               # zero-width joiner
-    "\U0001F1E0-\U0001F1FF"    # regional indicators (flags)
-    "\U00002600-\U000026FF"    # misc symbols
-    "\U00002300-\U000023FF"    # misc technical
-    "\U0000200B-\U0000200D"    # zero-width chars
-    "\U0000E0020-\U0000E007F"  # tags (flag subdivisions)
-    "\U0001F3FB-\U0001F3FF"    # skin tone modifiers
+    "[\U0001f600-\U0001f64f"  # emoticons
+    "\U0001f300-\U0001f5ff"  # misc symbols & pictographs
+    "\U0001f680-\U0001f6ff"  # transport & map
+    "\U0001f900-\U0001f9ff"  # supplemental symbols
+    "\U0001fa00-\U0001fa6f"  # chess symbols
+    "\U0001fa70-\U0001faff"  # symbols extended-A
+    "\U00002702-\U000027b0"  # dingbats
+    "\U0000fe0f"  # variation selector-16
+    "\U0000200d"  # zero-width joiner
+    "\U0001f1e0-\U0001f1ff"  # regional indicators (flags)
+    "\U00002600-\U000026ff"  # misc symbols
+    "\U00002300-\U000023ff"  # misc technical
+    "\U0000200b-\U0000200d"  # zero-width chars
+    "\U0000e0020-\U0000e007F"  # tags (flag subdivisions)
+    "\U0001f3fb-\U0001f3ff"  # skin tone modifiers
     "]+)$"
 )
 

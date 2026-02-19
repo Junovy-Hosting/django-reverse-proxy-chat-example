@@ -3,7 +3,13 @@ from django.core.management.base import BaseCommand
 
 
 USERS = [
-    {"username": "admin", "first_name": "Admin", "last_name": "Fae", "is_staff": True, "is_superuser": True},
+    {
+        "username": "admin",
+        "first_name": "Admin",
+        "last_name": "Fae",
+        "is_staff": True,
+        "is_superuser": True,
+    },
     {"username": "titania", "first_name": "Titania", "last_name": "Moonweaver"},
     {"username": "oberon", "first_name": "Oberon", "last_name": "Shadowthorn"},
     {"username": "puck", "first_name": "Puck", "last_name": "Trickfoot"},
@@ -14,7 +20,12 @@ USERS = [
     {"username": "fern", "first_name": "Fern", "last_name": "Dewdrop"},
     {"username": "cobweb", "first_name": "Cobweb", "last_name": "Silkspinner"},
     {"username": "mustardseed", "first_name": "Mustardseed", "last_name": "Goldenleaf"},
-    {"username": "omni", "first_name": "Omni", "last_name": "Voidwalker", "password": "omnifae42"},
+    {
+        "username": "omni",
+        "first_name": "Omni",
+        "last_name": "Voidwalker",
+        "password": "omnifae42",
+    },
 ]
 
 DEFAULT_PASSWORD = "faerie123"

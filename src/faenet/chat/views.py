@@ -21,8 +21,7 @@ def room_list(request):
 def room_detail(request, slug):
     room = get_object_or_404(ChatRoom, slug=slug)
     chat_messages = (
-        room.messages
-        .select_related("user", "parent", "parent__user")
+        room.messages.select_related("user", "parent", "parent__user")
         .prefetch_related(
             Prefetch(
                 "reactions",
@@ -47,7 +46,9 @@ def room_detail(request, slug):
             for emoji, d in emoji_data.items()
         ]
 
-    return render(request, "chat/room_detail.html", {"room": room, "chat_messages": chat_messages})
+    return render(
+        request, "chat/room_detail.html", {"room": room, "chat_messages": chat_messages}
+    )
 
 
 @login_required

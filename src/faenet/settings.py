@@ -85,9 +85,9 @@ USE_X_FORWARDED_PORT = True
 # Without this, POST requests (login, form submissions) return 403 Forbidden
 # with the error: "Origin checking failed - https://faeries.ngrok.app does not
 # match any trusted origins."
-CSRF_TRUSTED_ORIGINS = os.environ.get(
-    "CSRF_TRUSTED_ORIGINS", "http://localhost"
-).split(",")
+CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", "http://localhost").split(
+    ","
+)
 
 # ---------------------------------------------------------------------------
 # REVERSE PROXY FIX #4: Cookie security (conditional on DEBUG)
@@ -182,7 +182,9 @@ DATABASES = {
 # AUTH
 # ---------------------------------------------------------------------------
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
+    },
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
