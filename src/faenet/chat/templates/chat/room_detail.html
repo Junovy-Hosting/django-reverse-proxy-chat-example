@@ -439,6 +439,7 @@
         }
         // "+" button opens full emoji picker in reaction mode
         if (e.target.closest("#quick-emoji-plus") && activeReactionMessageId) {
+            e.stopPropagation();
             emojiPickerReactionMode = true;
             const emojiContainer = document.getElementById("emoji-picker-container");
             emojiContainer.classList.remove("hidden");
@@ -546,7 +547,12 @@
                     img.className = "w-full h-24 object-cover rounded cursor-pointer hover:ring-2 hover:ring-purple-500 transition-all";
                     img.addEventListener("click", function() {
                         if (ws && ws.readyState === WebSocket.OPEN) {
-                            ws.send(JSON.stringify({ message: gif.url }));
+                            const payload = { message: gif.url };
+                            if (replyToMessageId) {
+                                payload.reply_to = parseInt(replyToMessageId, 10);
+                            }
+                            ws.send(JSON.stringify(payload));
+                            clearReplyPreview();
                         }
                         giphyPanel.classList.add("hidden");
                     });
